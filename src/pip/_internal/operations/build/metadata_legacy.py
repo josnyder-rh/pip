@@ -53,9 +53,10 @@ def generate_metadata(
         setup_py_path, details,
     )
 
-    egg_info_dir = TempDirectory(
+    tmp_dir = TempDirectory(
         kind="pip-egg-info", globally_managed=True
-    ).path
+    )
+    egg_info_dir = tmp_dir.path
 
     args = make_setuptools_egg_info_args(
         setup_py_path,
@@ -63,10 +64,16 @@ def generate_metadata(
         no_user_config=isolated,
     )
 
+    extra_environ = dict()
+    sub_temp_dir = tmp_dir.make_sub_temp_dir()
+    if sub_temp_dir is not None:
+        extra_environ["TMPDIR"] = sub_temp_dir
+
     with build_env:
         call_subprocess(
             args,
             cwd=source_dir,
+            extra_environ=extra_environ,
             command_desc='python setup.py egg_info',
         )
 

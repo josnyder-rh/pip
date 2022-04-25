@@ -265,7 +265,7 @@ def _build_one_inside_env(
                 source_dir=req.unpacked_source_directory,
                 global_options=global_options,
                 build_options=build_options,
-                tempd=temp_dir.path,
+                temp_dir=temp_dir,
             )
 
         if wheel_path is not None:
