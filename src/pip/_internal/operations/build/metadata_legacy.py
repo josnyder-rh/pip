@@ -50,13 +50,21 @@ def generate_metadata(
         details,
     )
 
-    egg_info_dir = TempDirectory(kind="pip-egg-info", globally_managed=True).path
+    tmp_dir = TempDirectory(
+        kind="pip-egg-info", globally_managed=True
+    )
+    egg_info_dir = tmp_dir.path
 
     args = make_setuptools_egg_info_args(
         setup_py_path,
         egg_info_dir=egg_info_dir,
         no_user_config=isolated,
     )
+
+    extra_environ = dict()
+    sub_temp_dir = tmp_dir.make_sub_temp_dir()
+    if sub_temp_dir is not None:
+        extra_environ["TMPDIR"] = sub_temp_dir
 
     with build_env:
         with open_spinner("Preparing metadata (setup.py)") as spinner:
@@ -65,6 +73,7 @@ def generate_metadata(
                     args,
                     cwd=source_dir,
                     command_desc="python setup.py egg_info",
+                    extra_environ=extra_environ,
                     spinner=spinner,
                 )
             except InstallationSubprocessError as error:

@@ -81,6 +81,7 @@ class BuildEnvironment:
 
     def __init__(self) -> None:
         temp_dir = TempDirectory(kind=tempdir_kinds.BUILD_ENV, globally_managed=True)
+        self._sub_temp_dir = temp_dir.make_sub_temp_dir()
 
         self._prefixes = OrderedDict(
             (name, _Prefix(os.path.join(temp_dir.path, name)))
@@ -136,7 +137,7 @@ class BuildEnvironment:
     def __enter__(self) -> None:
         self._save_env = {
             name: os.environ.get(name, None)
-            for name in ("PATH", "PYTHONNOUSERSITE", "PYTHONPATH")
+            for name in ('PATH', 'PYTHONNOUSERSITE', 'PYTHONPATH', 'TMPDIR')
         }
 
         path = self._bin_dirs[:]
@@ -153,6 +154,8 @@ class BuildEnvironment:
                 "PYTHONPATH": os.pathsep.join(pythonpath),
             }
         )
+        if self._sub_temp_dir is not None:
+            os.environ['TMPDIR'] = self._sub_temp_dir
 
     def __exit__(
         self,
@@ -213,12 +216,14 @@ class BuildEnvironment:
         prefix.setup = True
         if not requirements:
             return
+
         self._install_requirements(
             get_runnable_pip(),
             finder,
             requirements,
             prefix,
             kind=kind,
+            sub_temp_dir=self._sub_temp_dir,
         )
 
     @staticmethod
@@ -229,6 +234,7 @@ class BuildEnvironment:
         prefix: _Prefix,
         *,
         kind: str,
+        sub_temp_dir: str,
     ) -> None:
         args: List[str] = [
             sys.executable,
@@ -270,6 +276,10 @@ class BuildEnvironment:
         args.append("--")
         args.extend(requirements)
         extra_environ = {"_PIP_STANDALONE_CERT": where()}
+
+        if sub_temp_dir is not None:
+            extra_environ["TMPDIR"] = sub_temp_dir
+
         with open_spinner(f"Installing {kind}") as spinner:
             call_subprocess(
                 args,

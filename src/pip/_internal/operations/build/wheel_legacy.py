@@ -1,5 +1,6 @@
 import logging
 import os.path
+import shutil
 from typing import List, Optional
 
 from pip._internal.cli.spinners import open_spinner
@@ -62,12 +63,13 @@ def build_wheel_legacy(
     source_dir: str,
     global_options: List[str],
     build_options: List[str],
-    tempd: str,
+    temp_dir,  # type: TempDirectory
 ) -> Optional[str]:
     """Build one unpacked package using the "legacy" build process.
 
     Returns path to wheel if successfully built. Otherwise, returns None.
     """
+    tempd = temp_dir.path
     wheel_args = make_setuptools_bdist_wheel_args(
         setup_py_path,
         global_options=global_options,
@@ -79,17 +81,26 @@ def build_wheel_legacy(
     with open_spinner(spin_message) as spinner:
         logger.debug("Destination directory: %s", tempd)
 
+        sub_temp_dir = temp_dir.make_sub_temp_dir()
+        extra_environ = dict()
+        if sub_temp_dir is not None:
+            extra_environ["TMPDIR"] = sub_temp_dir
+
         try:
             output = call_subprocess(
                 wheel_args,
                 command_desc="python setup.py bdist_wheel",
                 cwd=source_dir,
+                extra_environ=extra_environ,
                 spinner=spinner,
             )
         except Exception:
             spinner.finish("error")
             logger.error("Failed building wheel for %s", name)
             return None
+
+        if sub_temp_dir is not None:
+            shutil.rmtree(sub_temp_dir)
 
         names = os.listdir(tempd)
         wheel_path = get_legacy_build_wheel_path(

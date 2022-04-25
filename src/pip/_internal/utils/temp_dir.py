@@ -1,6 +1,7 @@
 import errno
 import itertools
 import logging
+import os
 import os.path
 import tempfile
 from contextlib import ExitStack, contextmanager
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T", bound="TempDirectory")
 
+tmpdir_serial = 0
 
 # Kinds of temporary directories. Only needed for ones that are
 # globally-managed.
@@ -161,6 +163,17 @@ class TempDirectory:
         # symlinked to another directory.  This tends to confuse build
         # scripts, so we canonicalize the path by traversing potential
         # symlinks here.
+
+        if "SOURCE_DATE_EPOCH" in os.environ:
+            global tmpdir_serial
+            path = os.path.join(
+                tempfile.gettempdir(),
+                "pip-{}-{}".format(kind, tmpdir_serial)
+            )
+            tmpdir_serial += 1
+            os.mkdir(path)
+            return path
+
         path = os.path.realpath(tempfile.mkdtemp(prefix=f"pip-{kind}-"))
         logger.debug("Created temporary directory: %s", path)
         return path
@@ -171,6 +184,14 @@ class TempDirectory:
         if not os.path.exists(self._path):
             return
         rmtree(self._path)
+
+    def make_sub_temp_dir(self):
+        if "SOURCE_DATE_EPOCH" not in os.environ:
+            return None
+
+        ret = os.path.join(self._path, 'tmp')
+        os.mkdir(ret)
+        return ret
 
 
 class AdjacentTempDirectory(TempDirectory):
